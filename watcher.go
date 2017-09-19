@@ -5,10 +5,11 @@ import (
 	"strconv"
 	"sync"
 
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/naming"
-	"github.com/prometheus/client_golang/prometheus"
-	"time"
 )
 
 var (
@@ -18,7 +19,7 @@ var (
 	}, []string{"target", "status"})
 	updateSize = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "kuberesolver_update_size",
-	Help: "number of elements returned by Next()",
+		Help: "number of elements returned by Next()",
 	}, []string{"target"})
 	deletes = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "kuberesolver_deletes",
@@ -125,6 +126,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		}
 	}
 	w.endpoints = updatedEndpoints
+	nextCalls.WithLabelValues(w.target.target, "success").Inc()
 	updateSize.WithLabelValues(w.target.target).Set(float64(len(updatedEndpoints)))
 	return updates, nil
 }
