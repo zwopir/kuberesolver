@@ -7,7 +7,24 @@ import (
 	"sync"
 
 	"google.golang.org/grpc/grpclog"
+	"github.com/prometheus/client_golang/prometheus"
+	"strings"
 )
+
+var (
+	events = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_watch_events",
+		Help: "number of watch events partitioned by type",
+	}, []string{"event_type"})
+)
+
+func init() {
+	prometheus.MustRegister(events)
+	events.WithLabelValues("added")
+	events.WithLabelValues("modified")
+	events.WithLabelValues("deleted")
+	events.WithLabelValues("error")
+}
 
 // Interface can be implemented by anything that knows how to watch and report changes.
 type watchInterface interface {
@@ -98,6 +115,7 @@ func (sw *streamWatcher) Decode() (Event, error) {
 	}
 	switch got.Type {
 	case Added, Modified, Deleted, Error:
+		events.WithLabelValues(strings.ToLower(string(got.Type))).Inc()
 		return got, nil
 	default:
 		return Event{}, fmt.Errorf("got invalid watch event type: %v", got.Type)

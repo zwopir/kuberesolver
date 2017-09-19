@@ -8,7 +8,19 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/naming"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	watcherRestarts = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_watcher_restarts",
+		Help: "number of watcher restarts",
+	},[]string{"target"})
+)
+
+func init() {
+	prometheus.MustRegister(watcherRestarts)
+}
 
 // kubeResolver resolves service names using Kubernetes endpoints.
 type kubeResolver struct {
@@ -38,6 +50,7 @@ func (r *kubeResolver) Resolve(target string) (naming.Watcher, error) {
 		err := r.watch(wtarget, stopCh, resultChan)
 		if err != nil {
 			grpclog.Printf("kuberesolver: watching ended with error='%v', will reconnect again", err)
+			watcherRestarts.WithLabelValues(r.watcher.target.target).Inc()
 		}
 	}, time.Second, stopCh)
 

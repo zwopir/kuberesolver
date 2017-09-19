@@ -7,7 +7,36 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/naming"
+	"github.com/prometheus/client_golang/prometheus"
+	"time"
 )
+
+var (
+	nextCalls = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_next_calls",
+		Help: "number of calls to Next()",
+	}, []string{"target", "status"})
+	updateSize = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kuberesolver_update_size",
+	Help: "number of elements returned by Next()",
+	}, []string{"target"})
+	deletes = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_deletes",
+		Help: "number delete statements in update returned by Next()",
+	}, []string{"target"})
+	adds = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_adds",
+		Help: "number add statements in update returned by Next()",
+	}, []string{"target"})
+	lastCalledTS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kuberesolver_next_last_called_timestamp_seconds",
+		Help: "timestamp of the latest Next() invocation",
+	}, []string{"target"})
+)
+
+func init() {
+	prometheus.MustRegister(nextCalls, updateSize, deletes, adds, lastCalledTS)
+}
 
 type watchResult struct {
 	ep  *Event
@@ -32,6 +61,7 @@ func (w *watcher) Close() {
 
 // Next updates the endpoints for the name being watched.
 func (w *watcher) Next() ([]*naming.Update, error) {
+	lastCalledTS.WithLabelValues(w.target.target).Set(float64(time.Now().Second()))
 	updates := make([]*naming.Update, 0)
 	updatedEndpoints := make(map[string]interface{})
 	var ep Event
@@ -43,11 +73,13 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 			w.stopped = true
 		}
 		w.Unlock()
+		nextCalls.WithLabelValues(w.target.target, "stopped").Inc()
 		return updates, nil
 	case r := <-w.result:
 		if r.err == nil {
 			ep = *r.ep
 		} else {
+			nextCalls.WithLabelValues(w.target.target, "error").Inc()
 			return updates, r.err
 		}
 	}
@@ -80,6 +112,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		if _, ok := w.endpoints[addr]; !ok {
 			updates = append(updates, &naming.Update{naming.Add, addr, md})
 			grpclog.Printf("kuberesolver: %s ADDED to %s", addr, w.target.target)
+			adds.WithLabelValues(w.target.target).Inc()
 		}
 	}
 
@@ -88,8 +121,10 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		if _, ok := updatedEndpoints[addr]; !ok {
 			updates = append(updates, &naming.Update{naming.Delete, addr, nil})
 			grpclog.Printf("kuberesolver: %s DELETED from %s", addr, w.target.target)
+			deletes.WithLabelValues(w.target.target).Inc()
 		}
 	}
 	w.endpoints = updatedEndpoints
+	updateSize.WithLabelValues(w.target.target).Set(float64(len(updatedEndpoints)))
 	return updates, nil
 }
