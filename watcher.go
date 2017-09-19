@@ -62,7 +62,7 @@ func (w *watcher) Close() {
 
 // Next updates the endpoints for the name being watched.
 func (w *watcher) Next() ([]*naming.Update, error) {
-	lastCalledTS.WithLabelValues(w.target.target).Set(float64(time.Now().Second()))
+	lastCalledTS.WithLabelValues(w.target.target).Set(float64(time.Now().Unix()))
 	updates := make([]*naming.Update, 0)
 	updatedEndpoints := make(map[string]interface{})
 	var ep Event
