@@ -23,11 +23,11 @@ var (
 	}, []string{"target"})
 	deletes = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "kuberesolver_deletes",
-		Help: "number delete statements in update returned by Next()",
+		Help: "number of delete statements in update returned by Next()",
 	}, []string{"target"})
 	adds = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "kuberesolver_adds",
-		Help: "number add statements in update returned by Next()",
+		Help: "number of add statements in update returned by Next()",
 	}, []string{"target"})
 	lastCalledTS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "kuberesolver_next_last_called_timestamp_seconds",
