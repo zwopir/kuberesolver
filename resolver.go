@@ -15,7 +15,7 @@ var (
 	watcherRestarts = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "kuberesolver_watcher_restarts",
 		Help: "number of watcher restarts",
-	},[]string{"target"})
+	},[]string{"target", "status"})
 )
 
 func init() {
@@ -48,10 +48,12 @@ func (r *kubeResolver) Resolve(target string) (naming.Watcher, error) {
 	wtarget := pt.target
 	go until(func() {
 		err := r.watch(wtarget, stopCh, resultChan)
+		status := "success"
 		if err != nil {
 			grpclog.Printf("kuberesolver: watching ended with error='%v', will reconnect again", err)
-			watcherRestarts.WithLabelValues(r.watcher.target.target).Inc()
+			status = "error"
 		}
+		watcherRestarts.WithLabelValues(r.watcher.target.target, status).Inc()
 	}, time.Second, stopCh)
 
 	r.watcher = &watcher{
