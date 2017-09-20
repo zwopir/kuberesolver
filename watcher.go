@@ -21,14 +21,10 @@ var (
 		Name: "kuberesolver_update_size",
 		Help: "number of elements returned by Next()",
 	}, []string{"target"})
-	deletes = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "kuberesolver_deletes",
-		Help: "number of delete statements in update returned by Next()",
-	}, []string{"target"})
-	adds = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "kuberesolver_adds",
-		Help: "number of add statements in update returned by Next()",
-	}, []string{"target"})
+	operations = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "kuberesolver_update_operations",
+		Help: "number of statements in update returned by Next() partitioned by operation (delete|add)",
+	}, []string{"target", "op"})
 	lastCalledTS = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "kuberesolver_next_last_called_timestamp_seconds",
 		Help: "timestamp of the latest Next() invocation",
@@ -36,7 +32,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(nextCalls, updateSize, deletes, adds, lastCalledTS)
+	prometheus.MustRegister(nextCalls, updateSize, operations, lastCalledTS)
 }
 
 type watchResult struct {
@@ -113,7 +109,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		if _, ok := w.endpoints[addr]; !ok {
 			updates = append(updates, &naming.Update{naming.Add, addr, md})
 			grpclog.Printf("kuberesolver: %s ADDED to %s", addr, w.target.target)
-			adds.WithLabelValues(w.target.target).Inc()
+			operations.WithLabelValues(w.target.target, "add").Inc()
 		}
 	}
 
@@ -122,7 +118,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		if _, ok := updatedEndpoints[addr]; !ok {
 			updates = append(updates, &naming.Update{naming.Delete, addr, nil})
 			grpclog.Printf("kuberesolver: %s DELETED from %s", addr, w.target.target)
-			deletes.WithLabelValues(w.target.target).Inc()
+			operations.WithLabelValues(w.target.target, "delete").Inc()
 		}
 	}
 	w.endpoints = updatedEndpoints
