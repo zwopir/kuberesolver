@@ -82,7 +82,7 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 				return updates, r.err
 			}
 		} else {
-			grpclog.Warning("kuberesolver: watcher receive channel closed")
+			grpclog.Print("kuberesolver: watcher receive channel closed")
 			return updates, errors.New("receive channel closed")
 		}
 	}
