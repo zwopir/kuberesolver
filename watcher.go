@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/naming"
+	"errors"
 )
 
 var (
@@ -72,12 +73,17 @@ func (w *watcher) Next() ([]*naming.Update, error) {
 		w.Unlock()
 		nextCalls.WithLabelValues(w.target.target, "stopped").Inc()
 		return updates, nil
-	case r := <-w.result:
-		if r.err == nil {
-			ep = *r.ep
+	case r, ok := <-w.result:
+		if ok {
+			if r.err == nil {
+				ep = *r.ep
+			} else {
+				nextCalls.WithLabelValues(w.target.target, "error").Inc()
+				return updates, r.err
+			}
 		} else {
-			nextCalls.WithLabelValues(w.target.target, "error").Inc()
-			return updates, r.err
+			grpclog.Warning("kuberesolver: watcher receive channel closed")
+			return updates, errors.New("receive channel closed")
 		}
 	}
 	for _, subset := range ep.Object.Subsets {
